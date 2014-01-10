@@ -1,0 +1,1140 @@
+<html>
+<head>
+<title>Android RadioK</title>
+<meta http-equiv="content-type" content="application/xhtml+xml; charset=UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<script src="phonegap.js"></script>
+<script src="childbrowser.js"></script>
+<script type="text/javascript" src="jquerymin.js"></script>
+<script type="text/javascript" src="iscroll-lite.js"></script>
+<link rel="stylesheet" type="text/css" href="reset-min.css">
+<style type="text/css">
+#resultsHolder{
+  position:absolute;
+  z-index:1;
+  width:100%;
+  background:#aaa;
+  overflow:auto;
+}
+#playlistHolder{
+  position:absolute;
+  z-index:1;
+  width:100%;
+  background:#aaa;
+  overflow:auto;
+}
+#calendarHolder{
+  position:absolute;
+  z-index:1;
+  width:100%;
+  background:#aaa;
+  overflow:auto;
+}
+* { -webkit-tap-highlight-color: rgba(0,0,0,0); } 
+</style>
+<script type="text/javascript">
+var debugging=false;
+var retrying=false;
+var interrupted=false;
+var retryAttempts=0;
+var uiPlaying=false;
+var mediaRunning=false;
+var mediaStatusNum=0;
+var mediaStack=[];
+function statusCallback(theStatus){
+  var statusArray=['MEDIA_NONE', 'MEDIA_STARTING', 'MEDIA_RUNNING', 'MEDIA_PAUSED', 'MEDIA_STOPPED'];
+  //dbuga('status '+statusArray[theStatus]);
+  if(statusArray[theStatus]=='MEDIA_RUNNING'){
+    mediaRunning=true;
+    retrying=false;
+    retryAttempts=0;
+    interrupted=false;
+    getRecentSongs();
+    }
+  else{
+    if((navigator.onLine ==false)&&(uiPlaying)&&(mediaRunning)){// is offline and was playing and running, so interrupted
+      //dbuga(" INT uiPlaying:"+uiPlaying+" mediaRunning:"+mediaRunning);
+      //interrupted=true;
+      //retrying=true;
+      window.setTimeout('stopReleaseNullRetry()',500);
+      document.getElementById('page_listen_content_djDiv').innerHTML="Interrupted...";
+      document.getElementById('page_listen_content_nowPlayingDiv').innerHTML="";
+      }
+    mediaRunning=false;
+    }
+  mediaStatusNum=theStatus;
+  }
+
+function stopReleaseNullRetry(){
+  //dbuga("stopReleaseNullRetry()");
+  mediaStack[0].stop();
+  window.setTimeout('releaseNullRetry()',500);
+  }
+function releaseNullRetry(){
+  //dbuga("releaseNullRetry()");
+  mediaStack[0].release();
+  window.setTimeout('nullRetry()',500);
+  }
+function nullRetry(){
+  //dbuga("nullRetry(), connectMedia()");
+  connectMedia();
+  window.setTimeout('startRetrying()',500);
+  }
+function startRetrying(){
+  //dbuga("startRetrying()");
+  retrying=true;
+  }
+function retryTick(){
+  if(retrying==true){
+    var message="retrying...";
+    retryAttempts++;
+    if(retryAttempts>3){
+      message="OMG. We're like totally not retrying...embarrassing. Like, try again in a bit k?  Radio K - Real College Radio.";
+      }
+    if(navigator.onLine){
+      mediaStack[0].play();
+      }
+    else{
+      message="no connection.";
+      }
+    document.getElementById('page_listen_content_djDiv').innerHTML=message;
+    }
+  }
+
+
+function stateTick(){
+  if(debugging==false){
+    document.getElementById("stateDiv").style.display="none";
+    }
+  else{
+    document.getElementById("stateDiv").style.display="block";
+    var theString="";
+    theString+="quality="+localStorage.getItem("quality")+"<br />";
+    theString+="navigator.onLine="+navigator.onLine+"<br />";
+    theString+="uiPlaying="+uiPlaying+"<br />";
+    theString+="mediaRunning="+mediaRunning+"<br />";
+    theString+="mediaStatusNum="+mediaStatusNum+"<br />";
+    theString+="retrying="+retrying+"<br />";
+    theString+="retryAttempts="+retryAttempts;
+    document.getElementById("stateDiv").innerHTML=theString;
+    }
+  }
+// -------------- events --------------------
+function mediumSelected(){
+  buttonOn("settings", "medium");
+  buttonOff("settings", "higher");
+  localStorage.setItem("quality", "medium");
+  mediaStack[0].stop();
+  mediaStack[0].release();
+  connectMedia();
+  if(uiPlaying){
+    retrying=true;
+    }
+  }
+function highSelected(){
+  buttonOff("settings", "medium");
+  buttonOn("settings", "higher");
+  localStorage.setItem("quality", "higher");
+  mediaStack[0].stop();
+  mediaStack[0].release();
+  connectMedia();
+  if(uiPlaying){
+    retrying=true;
+    }
+  }
+function togglePlaying(){
+  //dbuga('togglePlaying()');
+  document.getElementById('page_listen_content_djDiv').innerHTML="";
+  if(uiPlaying==true){
+    uiPlaying=false;
+    retrying=false;
+    interrupted=false;
+    buttonOff("listen", "playpause");
+    stopMedia();
+    }
+  else{
+    buttonOn("listen", "playpause");
+    document.getElementById('page_listen_content_djDiv').innerHTML="Connecting...";
+    retrying=true;
+    retryAttempts=0;
+    interrupted=false;
+    uiPlaying=true;
+    clearInterval(minuteInterval);
+    minuteInterval=setInterval('minuteTick()', 15000);
+    playMedia();
+    }
+  document.getElementById('page_listen_content_nowPlayingDiv').innerHTML="";
+  }
+function connectMedia(){
+  var thisMedia = new Media(urlByQuality[localStorage.getItem("quality")], successCallback, errorCallback, statusCallback);
+  mediaStack.unshift(thisMedia);
+  for (var m=1; m<mediaStack.length; m++){
+    mediaStack[m].stop();
+    mediaStack[m].release();
+    }
+  }
+/*
+      if(retrying==true){
+        retryAttempts++;
+        if(retryAttempts>2){
+          message="OMG. We're like totally not retrying...embarrassing. Like, try again in a bit k?  Radio K - Real College Radio.";
+          }
+        else{
+          message="Unable to connect. Retrying...";
+          }
+        retrying=false;
+        interrupted=false;
+        }
+      else{
+        if(interrupted==true){
+          if(remoteControlPaused==false){
+            message="Paused";
+            }
+          else{
+            message="retrying...";
+            }
+          retrying=false;
+          interrupted=false;
+          }           
+        else{
+          message="retrying...";
+          retrying=false;
+          interrupted=true;
+          }
+*/
+
+function successCallback(){
+  //dbuga('successCallback <br />');
+  }
+function errorCallback(theError){
+  //dbuga('errorCallback '+JSON.stringify(theError));
+  //return false;
+  }
+
+// ----------------------------------------------------------------------------
+
+
+var minuteInterval;
+var dimensionInterval;
+
+function init(){
+/*
+window.plugins.childBrowser.onClose = function () {
+    alert('childBrowser has closed');
+};
+window.plugins.childBrowser.onLocationChange = function (url) {
+    alert('childBrowser has loaded ' + url);
+};
+window.plugins.childBrowser.onOpenExternal = function () {
+    alert('opening Mobile Safari');
+};
+*/
+  //dbuga('init 0');
+  currentPage="listen";
+  populateContainer();
+  if (localStorage.getItem("quality") === null) {
+    localStorage.setItem("quality", "higher");
+    }
+  buttonOn("settings", localStorage.getItem("quality"));
+  buttonOn("footnav", "listen");
+  clearInterval(minuteInterval);
+  minuteInterval=setInterval('minuteTick()', 15000);
+  minuteTick();
+  getFaqs();
+  connectMedia();
+  retryInterval=window.setInterval("retryTick()", 2000);
+  //dbuga('init completed');
+  document.addEventListener("backbutton", onBackKeyDown, false);
+  }
+function onBackKeyDown() {
+  // Handle the back button
+      selectPage("listen");
+      buttonOn("footnav", "listen");
+      buttonOff("footnav", "request");
+  }
+ 
+var retryInterval;
+var songs=[];
+function getRecentSongs(){
+  //var feedUrl="http://www.radiok.org/";
+  var feedUrl="http://www.radiok.org/tools/packages/radiok/recent_songs";
+  //dbug('getRecentSongs()');
+  $.ajax({
+    url: feedUrl,
+    dataType: "text",        // <=== new bit
+    success: function(data) {parseRecentSongs(data);}
+    });
+  }
+// remove errors on publish
+var nowData={"dj":"", "time":"", "artist":"", "song":"", "album":""};
+var recentSongs={};
+function parseRecentSongs(theData){
+  //dbuga("parseRecentSongs "+theData);
+  recentSongs=JSON.parse(theData);
+  var songKeys=Object.keys(recentSongs);
+  songKeys.sort();
+  songKeys.reverse();
+  if(songKeys.length>0){
+    nowData={"dj":recentSongs[songKeys[0]].dj, "time":recentSongs[songKeys[0]].song_timestamp, "artist":recentSongs[songKeys[0]].song_artist, "song":recentSongs[songKeys[0]].song_title, "album":recentSongs[songKeys[0]].song_album};
+    if((uiPlaying==true)&&(mediaRunning==true)){
+      updateNowPlaying();
+      }
+    }
+  }
+function updateNowPlaying(){
+  //dbuga('updateNowPlaying()')
+  document.getElementById('page_listen_content_nowPlayingDiv').innerHTML=nowData.artist+"<br>"+nowData.song+"<br>"+nowData.album;  
+  document.getElementById('page_listen_content_djDiv').innerHTML="DJ: "+nowData.dj;  
+  }
+function dateTimeToTime(theDateTime){
+  var parts=theDateTime.split(" ");
+  var timePart=parts[1];
+  var hms=timePart.split(":");
+  var hour=Number(hms[0]);
+  var minute=hms[1];
+  var period="am";
+  if(hour>12){
+    hour-=12;
+    period="pm";
+    }
+  var textTime=hour+":"+minute+" "+period;
+  return textTime;
+  }
+function updatePlaylist(){
+  //dbuga('updatePlaylist()');
+  var songKeys=Object.keys(recentSongs);
+  songKeys.sort();
+  songKeys.reverse();
+
+  var gradStyle="background-image: -webkit-gradient(linear,left top,left bottom, color-stop(0%, #F2F2F2), color-stop(2%, #F2F2F2), color-stop(3%, #EDEDED), color-stop(50%, #fff), color-stop(100%, #fff));";
+  var textStyle='padding-top:'+grid*1.8+'px; width:'+ grid*48 +'px; min-height:'+ grid*8 +'px;  line-height:'+ grid*2.5 +'px;'
+  var htmlBlock="";
+
+  for(var s=0; s<songKeys.length; s++){
+    var songData=recentSongs[songKeys[s]];
+    htmlBlock+='<div class="playlistItem" style="'+textStyle+' '+gradStyle+'">';
+    htmlBlock+=  ''+songData.song_artist+' &#8220;'+songData.song_title+'&#8221;';
+    htmlBlock+=  '<br /><a href="javascript:shop(\''+songData.song_artist+'\', \''+songData.song_album+'\', \''+songData.song_title+'\');">';
+    htmlBlock+=  ''+songData.song_album+'</a>';
+    htmlBlock+=  '<br /><span style="font-family:akziregular;">'+dateTimeToTime(songData.song_timestamp)+'</span>';
+    htmlBlock+='</div>';
+    }
+  if(songKeys.length==0){
+    htmlBlock+='<div class="playlistItem" style="'+textStyle+' '+gradStyle+'">';
+    htmlBlock+=  'Stuck on AM Mix';
+    htmlBlock+=  '<br /><span style="font-family:akziregular;">Live Performances from Radio K</span>';
+    htmlBlock+='</div>';
+   }
+
+  document.getElementById('playlistScroller').innerHTML=''+htmlBlock+''; 
+  document.getElementById('playlistHolder').style.width=grid*48+'px'; 
+  document.getElementById('playlistHolder').style.height=grid*51+'px'; 
+  playlistScrollerTimeout=window.setTimeout("refreshPlaylistHolderScroll()", 100);
+  }
+
+var playlistScrollerTimeout;
+function refreshPlaylistHolderScroll(){
+  playlistHolderScroll.refresh();
+  }
+function populateCalendar(){
+  dbuga('populateCalendar() '+calendar.length);
+
+  var gradStyle="background-image: -webkit-gradient(linear,left top,left bottom, color-stop(0%, #F2F2F2), color-stop(2%, #F2F2F2), color-stop(3%, #EDEDED), color-stop(50%, #fff), color-stop(100%, #fff));";
+  var textStyle='padding-top:'+grid*1.8+'px; width:'+ grid*48 +'px; min-height:'+ grid*8 +'px;  line-height:'+ grid*2.5 +'px;'
+  var htmlBlock="";
+
+  for(var e=0; e<calendar.length; e++){
+    var eventData=calendar[e];
+    var performersText=eventData.performers;
+    var quoteParts=performersText.split('"');
+    var performersFixed=quoteParts[0];
+    for (var q=1; q<quoteParts.length; q++){
+      performersFixed+='"';
+      var prevPart=quoteParts[q-1];
+      var part=quoteParts[q];
+      if(prevPart.indexOf('href=')>-1){
+        dbuga(part);
+        part="javascript:remoteLink('"+part+"');";
+        }
+      performersFixed+=part; 
+      }
+    htmlBlock+='<div class="playlistItem" style="'+textStyle+' '+gradStyle+'">';
+    htmlBlock+=  ''+performersFixed;
+    htmlBlock+=  '<br />'+eventData.venue+'';
+    htmlBlock+=  ' &mdash; '+eventData.date;
+    htmlBlock+=  '<br /><span style="font-family:akziregular;">'+eventData.time+' '+ eventData.age +'</span>';
+    htmlBlock+='</div>';
+    }
+
+  document.getElementById('calendarScroller').innerHTML=htmlBlock; 
+  document.getElementById('calendarHolder').style.width=grid*48+'px'; 
+  document.getElementById('calendarHolder').style.height=grid*51+'px'; 
+  calendarScrollerTimeout=window.setTimeout("refreshCalendarHolderScroll()", 100);
+  }
+var calendarScrollerTimeout;
+function refreshCalendarHolderScroll(){
+  calendarHolderScroll.refresh();
+  }
+
+function getFaqs(){
+  faqs=[];
+  var feedUrl="http://www.radiok.org/app-faq/";
+  //dbuga('getFaqs()');
+  $.ajax({
+    url: feedUrl,
+    dataType: "text",        // <=== new bit
+    success: function(data) {parseFaqs(data);}
+    });
+  //dbuga('getFaqs() completed');
+  }
+var faqs=[
+  {"q":"What is Radio K?", "a":"Radio K, the award-winning radio station of the University of Minnesota, is nationally recognized as one of the best student-run college radio stations in the country, playing an eclectic variety of independent music both old and new.<br /><br />Radio K educates students, breaks ground in musical programming, and provides cutting-edge cultural coverage through our specialty shows, web content and Culture Queue."},
+  {"q":"How can I contact Radio K?", "a":"Email: <a href=\"javascript:remoteLink('mailto:radiok@umn.edu');\">radiok@umn.edu</a><br /><br />Phone: <a href=\"tel:+16126253500\">612-625-3500</a><br /><br />Web: <a href=\"javascript:remoteLink('http://www.radiok.org/\');\">www.radiok.org</a><br /><br />Mobile:<br /><a href=\"javascript:remoteLink('http://twitter.com/radiok');\"><img src=\"social/twitter.png\" width=\"socialSize\" height=\"socialSize\" /></a> <a href=\"javascript:remoteLink('https://www.facebook.com/20658369592'); return false(0);\"><img src=\"social/facebook.png\" width=\"socialSize\" height=\"socialSize\" /></a> <a href=\"javascript:remoteLink('http://www.youtube.com/user/RadioK770?feature=watch');\"><img src=\"social/youtube.png\" width=\"socialSize\" height=\"socialSize\" /></a> <a href=\"javascript:remoteLink('https://plus.google.com/u/0/106019319997650127214/about');\"><img src=\"social/googleplus.png\" width=\"socialSize\" height=\"socialSize\" /></a> <a href=\"javascript:remoteLink('http://www.radiok.org/blogs/new/tag/track%20of%20the%20day');\"><img src=\"social/rss.png\" width=\"socialSize\" height=\"socialSize\" /></a>"},
+  {"q":"How can I keep Radio K playing music?","a":"You can keep your already rad support going by <a href=\"javascript:remoteLink('http://www.radiok.org/donate/');\">donating</a> to the station and becoming a member. And, we like to keep it chill so donating literally any amount makes you a member. Got a spare $10? Throw it our way and we can keep the CDs spinning."},
+  {"q":"How do I get my band's music on Radio K?","a":"Head over to <a href=\"javascript:remoteLink('http://www.radiok.org/about/contact-information/music-submissions/');\">RadioK.org</a>"},
+  {"q":"How can I download the Track of the Day?","a":"Radio K\'s Track of the Day can be found <a href=\"javascript:remoteLink('http://www.radiok.org/blogs/new/tag/track%20of%20the%20day');\">here</a>."},
+  {"q":"What cool things do you have going on?","a":"We love live music even more than we love recorded music&mdash;check out our <a href=\"javascript:remoteLink('http://www.radiok.org/events/');\">Events Calendar</a>."},
+  {"q":"When is that awesome local show,<br>Off The Record?","a":"Off The Record is every Friday from 3 p.m. to 5 p.m. CST. Local music and local trivia comin&apos; at you for two hours, not to mention an interview and studio session with a local band during each show!"},
+  {"q":"You wanna be a DJ, too?","a":"University of Minnesota student taking 1 credit or more? If so then just email <a href=\"javascript:remoteLink('mailto:volunteer@radiok.org');\">volunteer@radiok.org</a> and you&apos;ll be on your way to becoming a rich, fabulous, glamorous DJ. (OK, we know those adjectives are, like, kind of an exaggeration but whatever, right?)"},
+  {"q":"Your Mom listens to commercial radio.<br>What&apos;s the deal with that?","a":"You heard wrong&mdash;our moms totally listen to us. They appreciate the fact that we&apos;re trying to keep &apos;em \"hip and groovy\" (their words, not ours). Real College Radio is for the cutting edge, the risk takers, the people who know that music matters most. That&apos;s you. That&apos;s us. That&apos;s them&mdash;&apos;cause we&apos;ve taught our mothers well."}
+];
+function parseFaqs(theScrape){
+  var faqBlocks=theScrape.split('<div class="faq_item">');
+  //dbuga('parseFaqs faqBlocks.length=' +faqBlocks.length);
+  if(faqBlocks.length>1){
+    faqs=[];
+    for (var s=1; s<faqBlocks.length; s++){
+      var faqBlock=faqBlocks[s];
+      var headingTempParts=faqBlock.split('<div class="faq_heading"><h2>');
+      var headingTemp=headingTempParts[1];
+      var headingParts=headingTemp.split('</h2></div>');
+      var headingText=headingParts[0];
+
+      var contentTempParts=faqBlock.split('<div class="faq_content"><p>');
+      var contentTemp=contentTempParts[1];
+      var contentParts=contentTemp.split('</p></div>');
+      var contentText=contentParts[0];
+      var quoteParts=contentText.split('"');
+      var contentFixed=quoteParts[0];
+      for (var q=1; q<quoteParts.length; q++){
+        contentFixed+='"';
+        var prevPart=quoteParts[q-1];
+        var part=quoteParts[q];
+        if(prevPart.indexOf('href=')>-1){
+          part="javascript:remoteLink('"+part+"');";
+          }
+        contentFixed+=part; 
+        //dbuga(part);
+        }
+      var thisEntry={"q":headingText, "a":contentFixed};
+      faqs.push(thisEntry);
+      //dbuga('<h2>'+headingText+'</h2><p>'+contentText+'</p>');
+      }
+    }
+  populateFaqs();
+  }
+var calendar=[];
+function getCalendar(){
+  calendar=[];
+  var feedUrl="http://www.radiok.org/events/";
+  dbuga('getCalendar()');
+  $.ajax({
+    url: feedUrl,
+    dataType: "text",        // <=== new bit
+    success: function(data) {parseCalendar(data);}
+    });
+  //dbuga('getCalendar() completed');
+  }
+function parseCalendar(theScrape){
+  var tableSplit=theScrape.split("<table");
+  var temp=tableSplit[1];
+  tableSplit=temp.split("</table>");
+  var tableContents=tableSplit[0];
+  
+  var trBlocks=tableContents.split('<tr valign="top">');
+  //dbuga('parseCalendar trBlocks.length=' +trBlocks.length);
+  if(trBlocks.length>2){
+    for (var tr=2; tr<trBlocks.length; tr++){
+      var trBlock=trBlocks[tr];
+      var tempParts=trBlock.split('</tr>');
+      var trText=tempParts[0];
+      var tdParts=trText.split('<td>');
+      var rowObj={"date":"date", "time":"time", "performers":"performers", "venue":"venue", "age":"age"}; 
+      for (var td=1; td<tdParts.length; td++){
+        tdBlock=tdParts[td];
+        var temp=tdBlock.split('</td>')
+        var tdText=temp[0];
+        if(td==1){
+          var dateTimeParts=tdText.split("<br />");
+          rowObj.date=dateTimeParts[0];
+          rowObj.time=dateTimeParts[1];
+          }
+        if(td==2){rowObj.performers=tdText;}
+        if(td==3){rowObj.venue=tdText;}
+        if(td==4){rowObj.age=tdText;}
+        }
+      //dbuga("dateTime="+rowObj.dateTime+" performers="+rowObj.performers+" venue="+rowObj.venue+" age="+rowObj.age);
+      calendar.push(rowObj);
+      }
+    }
+  //dbuga('parseCalendar completed');
+  populateCalendar();
+  }
+
+function dimensionTick(){
+  if((ww!=window.innerWidth)||(wh!=window.innerHeight)){
+    clearInterval(dimensionInterval);
+    populateContainer();
+    }
+  stateTick();
+  }
+var currentPage="";
+
+function selectCurrentPage(){
+  selectPage(currentPage);
+  }
+function selectPage(selectedPage){
+  //dbuga(selectedPage);
+  currentPage=selectedPage;
+  for(var p=0; p<pageArray.length; p++){
+    if(pageArray[p]==selectedPage){showPage(pageArray[p]);}
+    else{
+      hidePage(pageArray[p]);
+      //dbuga('hidePage pageArray['+p+']='+pageArray[p]);
+      }
+    }
+  }
+
+function showPage(thePage){
+  var pageStyle=document.getElementById('page_'+thePage).style;  
+  pageStyle.left="0px";
+  window.setTimeout('currentOpacity1()', 10);
+  }
+function currentOpacity1(){
+  document.getElementById('page_'+currentPage).style.opacity="1";
+  }
+var hideTimeout;
+
+function hidePage(thePage){
+  document.getElementById('page_'+thePage).style.opacity=hideByPage[thePage].opac;
+  hideTimeout=setTimeout('hideTick()', 400);
+  }
+
+function hideTick(){
+  for(var p=1; p<pageArray.length; p++){
+    if(pageArray[p]!=currentPage){
+      document.getElementById('page_'+pageArray[p]).style.left="1000px";  
+      }
+    }
+  }
+
+var ww=300;
+var wh=400;
+var leftOffset=0;
+var topOffset=0;
+var grid=32;
+var navDelay=400;
+var imagePath="images_large";
+function populateContainer(){
+  hideByPage={};
+  buttonMap=[];
+  pageArray=[];
+  ww=window.innerWidth;
+  wh=window.innerHeight;
+
+  //dbug(ww);
+  imagePath="images_large";//ipad retina
+  if(ww<1536){imagePath="images_medium";}// ipad, iPhone retina can handle 768
+  if(ww<640){imagePath="images_small";}//iphone, quarter scale is 384
+  //dbuga(imagePath);
+  var wAspect=ww/wh;
+  leftOffset=0;
+  topOffset=0;
+  grid=32;
+  var cw=320;
+  var ch=480;
+  //dbuga(" w:"+ww+" h:"+wh+" a:"+wAspect);
+  if(wAspect<.75){//is taller than iPad so offset top
+    leftOffset=0;
+    cw=ww;
+    ch=ww/.75;
+    topOffset=(wh-ch)/2;
+    grid=cw/48;
+    }
+  else{// iPad or fatter, offset left
+    topOffset=0;
+    ch=wh;
+    cw=wh*.75;
+    leftOffset=(ww-cw)/2;
+    grid=cw/48;
+    }
+  document.getElementById('container').style.width=cw+"px";
+  document.getElementById('container').style.height=ch+"px";
+  document.getElementById('container').style.left=leftOffset+"px";
+  document.getElementById('container').style.top=topOffset+"px";
+
+  var htmlString="";
+  for(var p=0; p<pages.length; p++){
+    page=pages[p];
+    heightsByPage[page.name]=grid*page.height;
+    hideStyle='top:'+(grid*page.hideTop+page.hideTopMargin*topOffset)+'px; left:'+(grid*page.hideLeft+page.hideLeftMargin*leftOffset)+'px; opacity:'+page.hideOpac+';';
+    htmlString+='<div id="page_'+page.name+'" class="pages" style="background-image:url('+imagePath+'/bg_'+page.name+'.jpg); width:'+ grid*48 +'px; height:'+ grid*page.height +'px; '+hideStyle+'">';
+    pageArray.push(page.name);
+    hideByPage[page.name]={"top":(grid*page.hideTop+page.hideTopMargin*topOffset), "left":(grid*page.hideLeft+page.hideLeftMargin*leftOffset), "opac":page.hideOpac};
+    buttons=page.buttons;
+    for(var b=0; b<buttons.length; b++){
+      button=buttons[b];
+      if((button.name=="phone")&&(topOffset==0)){
+        htmlString+='<div id="page_'+page.name+'_button_'+button.name+'" style="font-size:'+3.3*grid+'px; line-height:'+5.5*grid+'px; text-align:center; width:'+ grid*button.width +'px; height:'+ grid*button.height +'px; left:'+ grid*button.left +'px; top:'+ grid*button.top +'px;">';
+        htmlString+='<a href="tel:+16126264770"><img src="'+imagePath+'/page_'+page.name+'_button_'+button.name+'_off.png" style="border:0;" width="'+grid*button.width+'" height="'+grid*button.height+'" /></a>';
+        htmlString+='</div>'
+        }
+      else{
+        buttonMap.push({"page":page.name, "name":button.name, "left":grid*button.left, "right":grid*button.left+grid*button.width, "top":grid*button.top, "bottom":grid*button.top+grid*button.height});
+        htmlString+='<div id="page_'+page.name+'_button_'+button.name+'" class="buttons" style="background-image:url('+imagePath+'/page_'+page.name+'_button_'+button.name+'_off.png); width:'+ grid*button.width +'px; height:'+ grid*button.height +'px; left:'+ grid*button.left +'px; top:'+ grid*button.top +'px;">';
+        htmlString+='<div id="page_'+page.name+'_button_'+button.name+'_on" class="buttons" style="opacity:0; background-image:url('+imagePath+'/page_'+page.name+'_button_'+button.name+'_on.png); width:'+ grid*button.width +'px; height:'+ grid*button.height +'px; left:0px; top:0px;">';
+        htmlString+='</div>'
+        htmlString+='</div>'
+        }
+      }
+    contents=page.contents;
+    for(var c=0; c<contents.length; c++){
+      content=contents[c];
+      htmlString+='<div id="page_'+page.name+'_content_'+content.name+'" style="overflow:hidden; ';
+      htmlString+='width:'+ grid*content.width +'px; height:'+ grid*content.height +'px;  line-height:'+ grid*content.lineHeight +'px;  ';
+      htmlString+='font-size:'+ grid*content.fontSize +'px; text-align:'+content.textAlign+'; ';
+      htmlString+='color:'+content.color +'; left:'+grid*content.left+'px;  ';
+      htmlString+='font-family:'+ content.fontFamily +'; top:'+ grid*content.top +'px;">';
+      htmlString+=content.defaultText;
+      htmlString+='</div>'
+      }
+    htmlString+='</div>'
+    }
+  document.getElementById('container').innerHTML=htmlString;
+  clearInterval(dimensionInterval);
+  dimensionInterval=setInterval('dimensionTick()', 1000);
+  selectCurrentPage();
+  resultsHolderScroll=new iScroll('resultsHolder');
+  playlistHolderScroll=new iScroll('playlistHolder');
+  calendarHolderScroll=new iScroll('calendarHolder');
+  }
+function populateFaqs(){
+  var htmlString="";
+  var answersString="";
+  for (var f=0; f<faqs.length; f++){
+    var q=faqs[f].q;
+    var a=faqs[f].a;
+    var grad="background-image: -webkit-gradient(linear,left top,left bottom, color-stop(0%, #232323), color-stop(2%, #232323), color-stop(3%, #181818), color-stop(100%, #000));";
+
+    a=a.replace(/socialSize/g, (7*grid)+"px");
+    htmlString+='<div id="question_'+f+'" class="questionHolder" style="width:'+48*grid+'px; max-height:'+10*grid+'px; '+grad+'">';
+    htmlString+=  '<div id="twistie_'+f+'" class="twistie" style="padding-top:'+1.1*grid+'px; padding-bottom:'+1.1*grid+'px; width:'+40*grid+'px; ';
+    htmlString+=  'padding-left:'+grid*3+'px; padding-right:'+grid*6+'px; line-height:'+2.4*grid+'px; font-size:'+1.8*grid+'px; ';
+    htmlString+=  'background-image:url('+imagePath+'/page_faqs_button_twistie_on.png); background-size:'+7*grid+'px '+7*grid+'px;">'+q+'</div>'; 
+    htmlString+='</div>'
+    answersString+='<div id="answer_'+f+'" class="answer"  style="width:'+40*grid+'px; margin-left:'+grid*3+'px; top:'+grid*10+'px; line-height:'+2.6*grid+'px; font-size:'+2*grid+'px;">'+a+'</div>';
+    }
+  document.getElementById('page_faqs_content_faqsDiv').innerHTML=htmlString+answersString;
+  
+
+
+  var htmlString="";
+  htmlString+='<div class="questionHolder" style="width:'+48*grid+'px;'+grad+'">';
+  htmlString+=  '<div style="color:#aaa; padding-top:'+.75*grid+'px; font-family:akziregular; ';
+  htmlString+=  'padding-bottom:'+1*grid+'px; width:'+44*grid+'px; ';
+  htmlString+=  'padding-left:'+grid*3+'px; padding-right:'+grid*2+'px; ';
+  htmlString+=  'line-height:'+1.8*grid+'px; font-size:'+1.6*grid+'px;">';
+  htmlString+=  '&copy; Regents of the University of Minnesota 2013.<br>All rights reserved. Developed by <a href="javascript:remoteLink(\'http://jambots.com\');">Jambots.com</a>'; 
+  htmlString+='</div>'
+  document.getElementById('page_faqs_content_regentsDiv').innerHTML=htmlString;
+  }
+
+function selectTwistie(theTwistie){
+  //dbuga('selectTwistie('+theTwistie+')');
+  selectedTwistie=theTwistie;
+  if(theTwistie==-1){
+    //reveal all questions, hide all answers
+    for (q=0; q<faqs.length; q++){
+      var thisQuestion=document.getElementById('question_'+q)
+      var thisTwistie=document.getElementById('twistie_'+q)
+      var thisAnswer=document.getElementById('answer_'+q)
+      thisQuestion.style.maxHeight=10*grid+'px'; 
+      thisQuestion.style.height='auto'; 
+      thisTwistie.style.backgroundImage='url('+imagePath+'/page_faqs_button_twistie_on.png)';
+      thisAnswer.style.display="none";
+      }
+    }
+  else{
+    for (q=0; q<faqs.length; q++){
+      var thisQuestion=document.getElementById('question_'+q)
+      var thisTwistie=document.getElementById('twistie_'+q)
+      var thisAnswer=document.getElementById('answer_'+q)
+      if(q==theTwistie){
+        //reveal selected question and answer
+        thisQuestion.style.maxHeight=10*grid+'px'; 
+        thisQuestion.style.height='auto'; 
+        //thisTwistie.style.maxHeight=10*grid+'px'; 
+        thisTwistie.style.backgroundImage='url('+imagePath+'/page_faqs_button_twistie_off.png)';
+        thisAnswer.style.display="block";
+        }
+      else{
+        // hide all other q&a 
+        thisQuestion.style.height=0*grid+'px'; 
+        //thisTwistie.style.maxHeight=0*grid+'px'; 
+        thisTwistie.style.backgroundImage='url('+imagePath+'/page_faqs_button_twistie_on.png)';
+      thisAnswer.style.display="none";
+        }
+      }
+    }
+  }
+var selectedTwistie=-1;
+
+var hideByPage={};
+var buttonMap=[];
+var pageArray=[];
+var heightsByPage={};
+var pages=[
+{"name":"footnav", "hideLeft":0, "hideTop":0,  "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":1, "height":64,
+   "buttons":[
+    {"name":"listen", "top":58, "left":0, "height":6, "width":16},
+    {"name":"request", "top":58, "left":16, "height":6, "width":16},
+    {"name":"donate", "top":58, "left":32, "height":6, "width":16}
+  ],
+  "contents":[
+  ]
+},
+{"name":"listen", "hideLeft":0, "hideTop":0, "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":1, "height":58,
+  "buttons":[
+    {"name":"more", "top":0, "left":0, "height":7, "width":16},
+    {"name":"playlist", "top":0, "left":32, "height":7, "width":16},
+    {"name":"playpause", "top":38, "left":12, "height":12, "width":24}
+  ],
+  "contents":[
+    {"name":"nowPlayingDiv", "top":29.5, "left":1, "width":46, "height":8, "lineHeight":2.6, "fontSize":2, "fontFamily":"akzibold", "color":"white", "textAlign":"center", "defaultText":""},
+    {"name":"djDiv", "top":51, "left":1, "width":46, "height":8, "lineHeight":2.5, "fontSize":2, "fontFamily":"akzibold", "color":"white", "textAlign":"center", "defaultText":""}
+  ]
+},
+{"name":"more", "hideLeft":0, "hideTop":0, "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":0, "height":58,
+  "buttons":[
+    {"name":"done", "top":0, "left":39, "height":7, "width":9},
+    {"name":"calendar", "top":11, "left":9, "height":6, "width":30},
+    {"name":"faqs", "top":18, "left":9, "height":6, "width":30},
+    {"name":"settings", "top":25, "left":9, "height":6, "width":30}
+  ],
+  "contents":[
+  ]
+},
+{"name":"shop", "hideLeft":0, "hideTop":0, "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":0, "height":58,
+  "buttons":[
+    {"name":"done", "top":0, "left":39, "height":7, "width":9},
+  ],
+  "contents":[
+    {"name":"results", "top":7, "left":0, "height":51, "width":48, "lineHeight":2.6, "fontSize":2, "fontFamily":"akzibold", "color":"white", "textAlign":"left", "defaultText":'<div id="resultsHolder"><div id="resultsScroller"></div></div>'}
+  ]
+},
+{"name":"settings", "hideLeft":0, "hideTop":0, "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":0, "height":58,
+  "buttons":[
+    {"name":"done", "top":0, "left":39, "height":7, "width":9},
+    {"name":"medium", "top":14, "left":9, "height":6, "width":30},
+    {"name":"higher", "top":21, "left":9, "height":6, "width":30}
+  ],
+  "contents":[
+  ]
+},
+{"name":"request", "hideLeft":0, "hideTop":0, "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":0, "height":58,
+  "buttons":[
+    {"name":"done", "top":0, "left":39, "height":7, "width":9},
+    {"name":"phone", "top":11, "left":9, "height":6, "width":30},
+    {"name":"email", "top":18, "left":9, "height":6, "width":30},
+    {"name":"tweet", "top":25, "left":9, "height":6, "width":30}
+  ],
+  "contents":[
+  ]
+},
+{"name":"playlist", "hideLeft":0, "hideTop":0, "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":0,  "height":58,
+  "buttons":[
+    {"name":"refresh", "top":0, "left":36, "height":7, "width":12},
+  ],
+  "contents":[
+    {"name":"playlist", "top":7, "left":0, "height":51, "width":48, "lineHeight":2.6, "fontSize":2, "fontFamily":"akzibold", "color":"white", "textAlign":"left", "defaultText":'<div id="playlistHolder"><div id="playlistScroller"></div></div>'}
+  ]
+},
+{"name":"calendar", "hideLeft":0, "hideTop":0, "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":0,  "height":58,
+  "buttons":[
+    {"name":"done", "top":0, "left":39, "height":7, "width":9},
+  ],
+  "contents":[
+    {"name":"calendar", "top":7, "left":0, "height":51, "width":48, "lineHeight":2.6, "fontSize":2, "fontFamily":"akzibold", "color":"white", "textAlign":"left", "defaultText":'<div id="calendarHolder"><div id="calendarScroller"></div></div>'}
+  ]
+},
+{"name":"faqs", "hideLeft":0, "hideTop":0, "hideLeftMargin":0, "hideTopMargin":0, "hideOpac":0, "height":58,
+  "buttons":[
+    {"name":"done", "top":0, "left":39, "height":7, "width":9}
+  ],
+  "contents":[
+    {"name":"faqsDiv", "top":7.5, "left":0, "height":45.5, "width":48, "lineHeight":2.6, "fontSize":2, "fontFamily":"akzibold", "color":"white", "textAlign":"left", "defaultText":"How do I become a rich and<br>famous Radio K DJ?"},
+    {"name":"regentsDiv", "top":53, "left":0, "height":5, "width":48, "lineHeight":2.6, "fontSize":2, "fontFamily":"akzibold", "color":"white", "textAlign":"left", "defaultText":"How do I become a rich and<br>famous Radio K DJ?"}
+  ]
+}];
+function dbuga(theString){
+  if(debugging){
+    document.getElementById('debugDiv').style.display="block";
+    document.getElementById('debugDiv').style.top="140px";
+    document.getElementById('debugDiv').innerHTML+=theString+"<br />";
+    }
+  else{
+    document.getElementById('debugDiv').style.display="none";
+    }
+  }
+
+function dbug(theString){
+  if(debugging){
+    document.getElementById('debugDiv').innerHTML=theString; 
+    }
+  }
+
+function gestureStart(event) {
+  //  event.preventDefault(); 
+  }
+function gestureChange(event) {
+  //  event.preventDefault(); 
+  }
+
+function gestureEnd(event) {
+  //  event.preventDefault(); 
+  }
+
+function rnd(theSeed){
+  //return 0;
+  return Math.floor(Math.random()*theSeed);
+  }
+function range(theRange){
+  //return 0;
+  return rnd(theRange)-theRange/2;
+  }
+
+function touchCancel(event){
+  event.preventDefault(); 
+  }
+function touchStart(event){
+  //event.preventDefault(); 
+  handleTouchEvent(event);
+  }
+function touchMove(event){
+  if((currentPage !="playlist")&&(currentPage !="calendar")&&(currentPage !="shop")){
+    event.preventDefault();
+    }
+  if(lastTouchId.indexOf("page_")>-1){
+    //dbuga("lastTouchId="+lastTouchId);
+    event.preventDefault();
+    }
+  }
+function touchEnd(event){
+  //event.preventDefault();
+  handleTouchEvent(event);
+  }
+function moused(e){
+  //dbuga('moused '+ e.target.id);
+  if(e.target.id=="stateDiv"){dbug('');}
+  //handleTouchEvent({"type":"touchstart", "touches":[{"pageX":e.clientX, "pageY":e.clientY, "target":e.target}]});
+  }
+function buttonOn(thePage, theButton){
+  document.getElementById('page_'+thePage+'_button_'+theButton+'_on').style.opacity="1";
+  }
+function buttonOff(thePage, theButton){
+  document.getElementById('page_'+thePage+'_button_'+theButton+'_on').style.opacity="0";
+  }
+function shop(artist, album, song){
+  //dbuga("shop("+artist+", "+album+", "+song+")");
+  selectPage("shop");
+  var artistAlbumSong=artist+" "+album+" "+song;
+  var terms=artistAlbumSong.replace(/ /g, "+");
+  document.getElementById('resultsScroller').innerHTML="searching: "+artist+"<br>"+album;
+  var feedUrl="https://itunes.apple.com/search?limit=20&term="+terms;
+  $.ajax({
+    url: feedUrl,
+    dataType: "text",        // <=== new bit
+    success: function(data) {parseItunesResults(data);}
+    });
+  }
+// remove errors on publish
+var nowData={"dj":"", "time":"", "artist":"", "song":"", "album":""};
+var recentSongs={};
+function parseItunesResults(theData){
+  //dbuga("parseItunesResults");
+  var itunesJson=JSON.parse(theData);
+  var allResults=itunesJson.results;
+  var glom="|";
+  var results=[];
+  for(var r=0; r<allResults.length; r++){
+    var result=allResults[r];
+    var testString="|"+result.artistName+result.collectionName+"|";
+    if(glom.indexOf(testString)==-1){
+      glom+=testString;
+      results.push(result);
+      }
+    }
+  var gradStyle="background-image: -webkit-gradient(linear,left top,left bottom, color-stop(0%, #F2F2F2), color-stop(2%, #F2F2F2), color-stop(3%, #EDEDED), color-stop(50%, #fff), color-stop(100%, #fff));";
+  var headStyle='clear:both; padding-top:'+grid*1.8+'px; width:'+ grid*48 +'px; min-height:'+ grid*4 +'px;  line-height:'+ grid*2.5 +'px; text-align:center;';
+  var textStyle='clear:both; padding-top:'+grid*1.8+'px; width:'+ grid*48 +'px; min-height:'+ grid*16 +'px;  line-height:'+ grid*2.5 +'px; text-align:left;';
+  var imgStyle='float:left; padding-top:'+grid*1.8+'px; width:'+ grid*12 +'px; height:'+ grid*12 +'px; margin:0 '+ grid*2 +'px 0 '+ grid*2 +'px;'
+  var htmlBlock="";
+  //dbuga("results.length="+results.length);
+  if(results.length>0){
+    htmlBlock='<div class="playlistItem" style="'+headStyle+' '+gradStyle+' ">';
+    htmlBlock+=  'iTunes Results';
+    htmlBlock+='</div>';
+    for(var r=0; r<results.length; r++){
+      var result=results[r];
+      //dbuga(result.artistName+" "+result.collectionName);
+      htmlBlock+='<div class="playlistItem" style="'+textStyle+' '+gradStyle+'">';
+      htmlBlock+=  '<a href="javascript:remoteLink(\''+result.collectionViewUrl+'\'); return false;"><img src="'+result.artworkUrl100+'" style="'+imgStyle+'" /></a>';
+      htmlBlock+=  '<br /><span style="font-family:akziregular;">'+result.artistName+'</span>';
+      htmlBlock+=  '<br /><a href="javascript:remoteLink(\''+result.collectionViewUrl+'\'); return false;"><span style="">'+result.collectionName+'</span></a>';
+      htmlBlock+='</div>';
+      }
+    }
+  else{
+    htmlBlock="Sorry, no items found.";
+    }
+  document.getElementById('resultsScroller').innerHTML=htmlBlock;
+  document.getElementById('resultsHolder').style.width=grid*48+'px'; 
+  document.getElementById('resultsHolder').style.height=grid*51+'px'; 
+  resultsScrollerTimeout=window.setTimeout("refreshResultsHolderScroll()", 100);
+  }
+
+var resultsScrollerTimeout;
+function refreshResultsHolderScroll(){
+  resultsHolderScroll.refresh();
+  }
+
+var resultsHolderScroll;
+var calendarHolderScroll;
+var playlistHolderScroll;
+function remoteLink(theUrl){
+  window.plugins.childBrowser.openExternal(theUrl);
+  }
+function handleButton(pageName, buttonName){
+  //dbug('handleButton('+pageName+', '+buttonName+')');
+  if(pageName=="footnav"){
+    if(buttonName=="listen"){
+      selectPage("listen");
+      buttonOn("footnav", "listen");
+      buttonOff("footnav", "request");
+      }
+    if(buttonName=="request"){
+      selectPage("request");
+      buttonOff("footnav", "listen");
+      buttonOn("footnav", "request");
+      }
+    if(buttonName=="donate"){
+      buttonOn("footnav", "donate");
+      window.setTimeout('buttonOff("footnav", "donate")', navDelay*2);
+      window.plugins.childBrowser.openExternal('http://www.radiok.org/donate/');
+      }
+    }
+  if(pageName=="listen"){
+    if(buttonName=="settings"){
+      buttonOff("footnav", "listen");
+      buttonOn("listen", "settings");
+      window.setTimeout('buttonOff("listen", "settings"); selectPage("settings");', navDelay);
+      }
+    if(buttonName=="more"){
+      buttonOff("footnav", "listen");
+      buttonOn("listen", "more");
+      window.setTimeout('buttonOff("listen", "more"); selectPage("more");', navDelay);
+      }
+    if(buttonName=="playlist"){
+      buttonOff("footnav", "listen");
+      buttonOn("listen", "playlist");
+      window.setTimeout('buttonOff("listen", "playlist"); selectPage("playlist");', navDelay);
+      updatePlaylist();
+      }
+    if(buttonName=="playpause"){
+      togglePlaying();
+      }
+    }
+  if(pageName=="more"){
+    if(buttonName=="settings"){
+      buttonOff("footnav", "listen");
+      buttonOn("more", "settings");
+      window.setTimeout('buttonOff("more", "settings"); selectPage("settings");', navDelay);
+      }
+    if(buttonName=="faqs"){
+      buttonOff("footnav", "listen");
+      buttonOn("more", "faqs");
+      window.setTimeout('buttonOff("more", "faqs"); selectPage("faqs");', navDelay);
+      }
+    if(buttonName=="calendar"){
+      buttonOff("footnav", "listen");
+      buttonOn("more", "calendar");
+      window.setTimeout('buttonOff("more", "calendar"); selectPage("calendar");', navDelay);
+      getCalendar();
+      }
+    if(buttonName=="playlist"){
+      buttonOff("footnav", "listen");
+      buttonOn("more", "playlist");
+      window.setTimeout('buttonOff("more", "playlist"); selectPage("playlist");', navDelay);
+      updatePlaylist();
+      }
+    }
+
+  if(pageName=="shop"){
+    if(buttonName=="done"){
+      buttonOn("shop", "done");
+      window.setTimeout('buttonOff("shop", "done"); buttonOn("footnav", "listen"); selectPage("listen");', navDelay);
+      }
+    }
+  if(pageName=="settings"){
+    if(buttonName=="faqs"){
+      buttonOn("settings", "faqs");
+      window.setTimeout('buttonOff("settings", "faqs"); selectPage("faqs");', navDelay);
+      }
+    if(buttonName=="done"){
+      buttonOn("settings", "done");
+      window.setTimeout('buttonOff("settings", "done"); buttonOn("footnav", "listen"); selectPage("listen");', navDelay);
+      }
+    if(buttonName=="medium"){
+      mediumSelected();
+      }
+    if(buttonName=="higher"){
+      highSelected();
+      }
+    }
+  if(pageName=="faqs"){
+    if(buttonName=="done"){
+      buttonOn("faqs", "done");
+      window.setTimeout('buttonOff("faqs", "done"); buttonOn("footnav", "listen"); selectPage("listen");', navDelay);
+      }
+    }
+  if(pageName=="calendar"){
+    if(buttonName=="done"){
+      buttonOn("calendar", "done");
+      window.setTimeout('buttonOff("calendar", "done"); buttonOn("footnav", "listen"); selectPage("listen");', navDelay);
+      }
+    }
+  if(pageName=="request"){
+    if(buttonName=="done"){
+      buttonOn("request", "done");
+      window.setTimeout('buttonOff("request", "done"); buttonOn("footnav", "listen");  buttonOff("footnav", "request"); selectPage("listen");', navDelay);
+      }
+    if(buttonName=="faqs"){
+      buttonOn("request", "faqs");
+      buttonOff("footnav", "request");
+      window.setTimeout('buttonOff("request", "faqs"); selectPage("faqs");', navDelay);
+      }
+    if(buttonName=="phone"){
+      buttonOn("request", "phone");
+      window.setTimeout('buttonOff("request", "phone")', navDelay*2);
+      window.plugins.childBrowser.openExternal('tel:+16126264770');
+      }
+    if(buttonName=="email"){
+      buttonOn("request", "email");
+      window.setTimeout('buttonOff("request", "email")', navDelay*2);
+      window.plugins.childBrowser.openExternal('mailto:request@radiok.org?subject=Request from Radio K app');
+      }
+    if(buttonName=="tweet"){
+      buttonOn("request", "tweet");
+      window.setTimeout('buttonOff("request", "tweet")', navDelay*2);
+      window.plugins.childBrowser.openExternal('https://twitter.com/intent/tweet?source=webclient&text=%40RadioK+%23Request');
+      }
+    }
+  if(pageName=="playlist"){
+    if(buttonName=="refresh"){
+      buttonOn("playlist", "refresh");
+      window.setTimeout('buttonOff("playlist", "refresh")', navDelay*2);
+      updatePlaylist();
+      }
+    }
+  }
+
+var urlByQuality={
+  "low":"http://radiokstreams.cce.umn.edu:8056", 
+  "medium":"http://radiokstreams.cce.umn.edu:8128", 
+  "high":"http://radiokstreams.cce.umn.edu:8256",
+  "higher":"http://radiokstreams.cce.umn.edu:8256"
+  };
+
+var bufferTimeout;
+function minuteTick(){
+  //dbuga('minuteTick() uiPlaying='+uiPlaying+' interrupted='+interrupted);
+  //if((uiPlaying==true)&&(mediaStatusNum==true)){
+  //  updateNowPlaying();
+  //  }
+  getRecentSongs();
+  }
+
+function resumeGame(){
+  //dbuga('resumeGame()');
+  return true;
+  }
+var remoteControlPaused=false;
+function remoteControlPause(){
+  remoteControlPaused=true;
+  uiPlaying=false;
+  retrying=false;
+  interrupted=false;
+  buttonOff("listen", "playpause");
+  }
+function remoteControlPlay(){
+  remoteControlPaused=false;
+  uiPlaying=true;
+  retrying=false;
+  interrupted=false;
+  buttonOn("listen", "playpause");
+  }
+function stopMedia(){
+  mediaStack[0].stop();
+  }
+function playMedia(){
+  mediaStack[0].play();
+  }
+var lastTouchId="";
+function handleTouchEvent(e){
+  //dbuga("e.type="+e.type);
+  if(e.type=="touchstart"){
+    if(e.touches.length==3){dbug('');}
+    px=e.touches[0].pageX-leftOffset;
+    py=e.touches[0].pageY-topOffset; 
+    //dbuga('px:'+px+' py:'+py);
+    var target=e.touches[0].target;
+    var targetId=target.id; 
+    lastTouchId=targetId;
+    //dbuga(' target='+target+' target.id='+targetId);
+
+    if((currentPage=="faqs")&&(targetId.indexOf('twistie')>-1)){// skip to twisties if faqs and target match
+      if(selectedTwistie==-1){
+        var parts=targetId.split('_');
+        var targetNum=Number(parts[1]);
+        selectTwistie(targetNum);
+        }
+      else{
+        selectTwistie(-1);
+        }
+      }
+    else{
+      for (m=0; m<buttonMap.length; m++){
+        area=buttonMap[m];
+        if((px>area.left)&&(px<area.right)&&(py>area.top)&&(py<area.bottom)){
+          if((currentPage==area.page)||(py>heightsByPage[currentPage])){// on page or footnav
+            //dbuga('page:'+area.page+' name:'+area.name);
+            handleButton(area.page, area.name);
+            }
+          }
+        }
+      }
+    }
+  }
+document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
+</script>
+</head>
+<body onload="init()" onmousedown="moused(event);" ontouchstart="touchStart(event);" ontouchcancel="touchCancel(event);">
+
+<div id="wrapper">
+  <div id="container">
+  </div>
+  <div id="debugDiv"></div>
+  <div id="stateDiv">stateDiv</div>
+</div>
+</body>
+</html>

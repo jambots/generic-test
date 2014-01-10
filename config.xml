@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+    <widget xmlns = "http://www.w3.org/ns/widgets"
+        xmlns:gap = "http://phonegap.com/ns/1.0"
+        id        = "com.jambots.gener”ic-test
+        versionCode="4" 
+        version   = "1.0.4">
+
+    <!-- versionCode is optional and Android only -->
+
+    <name>Generic Test</name>
+    <description>Test Audio Streams</description>
+<gap:platform name="android" />
+<preference name="fullscreen" value="true" />
+<preference name="orientation" value="portrait" />
+<gap:splash src="splash.png" />
+<access origin="*" />
+<feature name="http://api.phonegap.com/1.0/media"/>
+<feature name="http://api.phonegap.com/1.0/network"/>
+<icon src="icon.png" />
+<gap:plugin name="com.phonegap.plugins.childbrowser" />
+</widget>
