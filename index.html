@@ -167,6 +167,7 @@ function togglePlaying(){
   }
 function connectMedia(){
   var thisMedia = new Media(testStreamUrl, successCallback, errorCallback, statusCallback);
+  document.getElementById('page_listen_content_nowPlayingDiv').innerHTML=testStreamUrl;  
   mediaStack.unshift(thisMedia);
   for (var m=1; m<mediaStack.length; m++){
     mediaStack[m].stop();
@@ -254,8 +255,8 @@ function parseRecentSongs(theData){
   }
 function updateNowPlaying(){
   //dbuga('updateNowPlaying()')
-  document.getElementById('page_listen_content_nowPlayingDiv').innerHTML=testStreamUrl;  
-  document.getElementById('page_listen_content_djDiv').innerHTML="DJ: "+nowData.dj;  
+  //document.getElementById('page_listen_content_nowPlayingDiv').innerHTML=testStreamUrl;  
+  //document.getElementById('page_listen_content_djDiv').innerHTML="DJ: "+nowData.dj;  
   }
 function dateTimeToTime(theDateTime){
   var parts=theDateTime.split(" ");
