@@ -166,7 +166,6 @@ function togglePlaying(){
   document.getElementById('page_listen_content_nowPlayingDiv').innerHTML="";
   }
 function connectMedia(){
-  //var thisMedia = new Media(urlByQuality[localStorage.getItem("quality")], successCallback, errorCallback, statusCallback);
   var thisMedia = new Media(testStreamUrl, successCallback, errorCallback, statusCallback);
   mediaStack.unshift(thisMedia);
   for (var m=1; m<mediaStack.length; m++){
@@ -174,35 +173,6 @@ function connectMedia(){
     mediaStack[m].release();
     }
   }
-/*
-      if(retrying==true){
-        retryAttempts++;
-        if(retryAttempts>2){
-          message="OMG. We're like totally not retrying...embarrassing. Like, try again in a bit k?  Radio K - Real College Radio.";
-          }
-        else{
-          message="Unable to connect. Retrying...";
-          }
-        retrying=false;
-        interrupted=false;
-        }
-      else{
-        if(interrupted==true){
-          if(remoteControlPaused==false){
-            message="Paused";
-            }
-          else{
-            message="retrying...";
-            }
-          retrying=false;
-          interrupted=false;
-          }           
-        else{
-          message="retrying...";
-          retrying=false;
-          interrupted=true;
-          }
-*/
 
 function successCallback(){
   //dbuga('successCallback <br />');
@@ -1049,14 +1019,7 @@ function handleButton(pageName, buttonName){
       }
     }
   }
-var testStreamUrl="http://radiokstreams.cce.umn.edu:8256";
-var urlByQuality={
-  "low":"http://radiokstreams.cce.umn.edu:8056", 
-  "medium":"http://radiokstreams.cce.umn.edu:8128", 
-  "high":"http://radiokstreams.cce.umn.edu:8256",
-  "higher":"http://radiokstreams.cce.umn.edu:8256"
-  };
-
+var testStreamUrl="";
 var bufferTimeout;
 function minuteTick(){
   //dbuga('minuteTick() uiPlaying='+uiPlaying+' interrupted='+interrupted);
