@@ -166,7 +166,8 @@ function togglePlaying(){
   document.getElementById('page_listen_content_nowPlayingDiv').innerHTML="";
   }
 function connectMedia(){
-  var thisMedia = new Media(testStreamUrl, successCallback, errorCallback, statusCallback);
+  alert('connectMedia ' +testStreamUrl);
+  var thisMedia = new Media("http://live.str3am.com:2750", successCallback, errorCallback, statusCallback);
   document.getElementById('page_listen_content_nowPlayingDiv').innerHTML=testStreamUrl;  
   mediaStack.unshift(thisMedia);
   for (var m=1; m<mediaStack.length; m++){
@@ -1020,7 +1021,7 @@ function handleButton(pageName, buttonName){
       }
     }
   }
-var testStreamUrl="";
+var testStreamUrl="http://live.str3am.com:2750";
 var bufferTimeout;
 function minuteTick(){
   //dbuga('minuteTick() uiPlaying='+uiPlaying+' interrupted='+interrupted);
