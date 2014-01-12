@@ -33,6 +33,13 @@
 * { -webkit-tap-highlight-color: rgba(0,0,0,0); } 
 </style>
 <script type="text/javascript">
+var urlByQuality={
+  "low":"http://radiokstreams.cce.umn.edu:8056", 
+  "medium":"http://radiokstreams.cce.umn.edu:8128", 
+  "high":"http://radiokstreams.cce.umn.edu:8256",
+  "higher":"http://radiokstreams.cce.umn.edu:8256"
+  };
+
 var debugging=false;
 var retrying=false;
 var interrupted=false;
@@ -167,7 +174,9 @@ function togglePlaying(){
   }
 function connectMedia(){
   alert('connectMedia ' +testStreamUrl);
-  var thisMedia = new Media("http://live.str3am.com:2750", successCallback, errorCallback, statusCallback);
+//var thisMedia = new Media(urlByQuality[localStorage.getItem("quality")], successCallback, errorCallback, statusCallback);
+
+  var thisMedia = new Media(testStreamUrl, successCallback, errorCallback, statusCallback);
   document.getElementById('page_listen_content_nowPlayingDiv').innerHTML=testStreamUrl;  
   mediaStack.unshift(thisMedia);
   for (var m=1; m<mediaStack.length; m++){
@@ -901,10 +910,20 @@ function handleButton(pageName, buttonName){
       buttonOn("footnav", "request");
       }
     if(buttonName=="donate"){
-      //buttonOn("footnav", "donate");
+/*
+      buttonOn("footnav", "donate");
       window.setTimeout('buttonOff("footnav", "donate")', navDelay*2);
-      //window.plugins.childBrowser.openExternal('http://www.radiok.org/donate/');
+      window.plugins.childBrowser.openExternal('http://www.radiok.org/donate/');
+*/
+// hackage
      testStreamUrl=prompt("Test Stream URL", testStreamUrl);
+     mediaStack[0].stop();
+     mediaStack[0].release();
+     connectMedia();
+     if(uiPlaying){
+       retrying=true;
+       }
+//end hackage
      }
     }
   if(pageName=="listen"){
@@ -1092,6 +1111,7 @@ function handleTouchEvent(e){
       }
     }
   }
+
 document.addEventListener('touchmove', function (e) { e.preventDefault(); }, false);
 </script>
 </head>
