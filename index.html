@@ -166,7 +166,8 @@ function togglePlaying(){
   document.getElementById('page_listen_content_nowPlayingDiv').innerHTML="";
   }
 function connectMedia(){
-  var thisMedia = new Media(urlByQuality[localStorage.getItem("quality")], successCallback, errorCallback, statusCallback);
+  //var thisMedia = new Media(urlByQuality[localStorage.getItem("quality")], successCallback, errorCallback, statusCallback);
+  var thisMedia = new Media(testStreamUrl, successCallback, errorCallback, statusCallback);
   mediaStack.unshift(thisMedia);
   for (var m=1; m<mediaStack.length; m++){
     mediaStack[m].stop();
@@ -928,10 +929,11 @@ function handleButton(pageName, buttonName){
       buttonOn("footnav", "request");
       }
     if(buttonName=="donate"){
-      buttonOn("footnav", "donate");
+      //buttonOn("footnav", "donate");
       window.setTimeout('buttonOff("footnav", "donate")', navDelay*2);
-      window.plugins.childBrowser.openExternal('http://www.radiok.org/donate/');
-      }
+      //window.plugins.childBrowser.openExternal('http://www.radiok.org/donate/');
+     testStreamUrl=prompt("Test Stream URL", testStreamUrl);
+     }
     }
   if(pageName=="listen"){
     if(buttonName=="settings"){
@@ -1047,7 +1049,7 @@ function handleButton(pageName, buttonName){
       }
     }
   }
-
+var testStreamUrl="http://radiokstreams.cce.umn.edu:8256";
 var urlByQuality={
   "low":"http://radiokstreams.cce.umn.edu:8056", 
   "medium":"http://radiokstreams.cce.umn.edu:8128", 
