@@ -177,6 +177,7 @@ function connectMedia(){
 //var thisMedia = new Media(urlByQuality[localStorage.getItem("quality")], successCallback, errorCallback, statusCallback);
 
   var thisMedia = new Media(testStreamUrl, successCallback, errorCallback, statusCallback);
+  alert('new Media() succeeded');
   document.getElementById('page_listen_content_nowPlayingDiv').innerHTML=testStreamUrl;  
   mediaStack.unshift(thisMedia);
   for (var m=1; m<mediaStack.length; m++){
