@@ -15,8 +15,16 @@
 <preference name="orientation" value="portrait" />
 <gap:splash src="splash.png" />
 <access origin="*" />
+<!--
 <feature name="http://api.phonegap.com/1.0/media"/>
+-->
+<gap:plugin name="org.apache.cordova.media" />
 <feature name="http://api.phonegap.com/1.0/network"/>
 <icon src="icon.png" />
+<!--
 <gap:plugin name="com.phonegap.plugins.childbrowser" />
+-->
+<feature name="ChildBrowser">
+  <param name="ios-package" value="ChildBrowserCommand" />
+</feature>
 </widget>
