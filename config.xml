@@ -10,6 +10,7 @@
     <name>Generic Test</name>
     <description>Test Audio Streams</description>
 <gap:platform name="android" />
+<gap:platform name="ios" />
 <preference name="fullscreen" value="true" />
 <preference name="orientation" value="portrait" />
 <gap:splash src="splash.png" />
