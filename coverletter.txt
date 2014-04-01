@@ -1,0 +1,7 @@
+I have been developing interactions using Javascript, CSS and HTML5 Canvas with a focus on programmatic animation and responsive, data-driven interfaces. My latest app, developed for Radio K at the University of Minnesota is based on the Adobe PhoneGap Build service and is my first app to appear on both the iOS App Store and Google Play. 
+
+HTML is common to every operating system on every desktop, mobile device, and soon even televisions. Be aware that I do not write native code such as Java or Objective C. This decision frees me to target all platforms using my existing skills while engaging in the work I am truly passionate about, design and mathematics. 
+
+Visit Jambots.com to see a selection of my iOS apps including games, music education, and more. The most impressive one is Railroad Train. 
+
+While I am proud of having created residual income from my independent apps, I am now looking for a team environment where I can contribute more to create world class products.
